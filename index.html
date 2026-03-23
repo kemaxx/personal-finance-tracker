@@ -105,7 +105,7 @@
     async function fetchBalance() {
         const display = document.getElementById("balance-display");
         try {
-            const response = await fetch("http://127.0.0.1:5000/api/balance", { headers: HEADERS });
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/balance", { headers: HEADERS });
             const json = await response.json();
             if (response.ok) {
                 const formatted = json.data.total_balance.toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -118,7 +118,7 @@
     async function fetchCategories() {
         const dropdown = document.getElementById("category");
         try {
-            const response = await fetch("http://127.0.0.1:5000/api/categories", { headers: HEADERS });
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/categories", { headers: HEADERS });
             const json = await response.json();
             
             if (response.ok) {
@@ -141,7 +141,7 @@
         const tbody = document.getElementById("transactions-body");
         try {
             // Notice we use the Query Parameters we built earlier! page=1 & per_page=5
-            const response = await fetch("http://127.0.0.1:5000/api/transactions?page=1&per_page=5", { headers: HEADERS });
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/transactions?page=1&per_page=5", { headers: HEADERS });
             const json = await response.json();
             
             if (response.ok) {
@@ -186,7 +186,7 @@
 
         try {
             // 4. Send the POST request to the API
-            const response = await fetch("http://127.0.0.1:5000/api/transactions", {
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/transactions", {
                 method: "POST",
                 headers: {
                     "X-API-Key": API_KEY,
