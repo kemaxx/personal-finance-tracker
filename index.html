@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Finance Dashboard</title>
+    <!-- 1. The Bootstrap 5 CDN (The Interior Designer) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        
+        <!-- THE BALANCE CARD -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow-sm text-center border-0">
+                <div class="card-body py-5">
+                    <h2 class="text-muted mb-3">Current Vault Balance</h2>
+                    <h1 class="display-3 text-success fw-bold" id="balance-display">₦ ---</h1>
+                    <button class="btn btn-primary btn-lg mt-3 px-5" onclick="loadDashboard()">
+                        Refresh Dashboard
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- THE INPUT FORM -->
+        <div class="col-md-8 mb-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <h4 class="mb-0">Add New Transaction</h4>
+                </div>
+                <div class="card-body">
+                    <form id="transaction-form" onsubmit="submitTransaction(event)">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Date</label>
+                                <input type="date" class="form-control" id="date" required>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label">Description</label>
+                                <input type="text" class="form-control" id="description" placeholder="e.g., Uber to Airport" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Amount (₦)</label>
+                                <input type="number" step="0.01" class="form-control" id="amount" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Category</label>
+                                <select class="form-select" id="category" required>
+                                <!-- We will let JavaScript populate this! -->
+                                <option value="" disabled selected>Loading categories...</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 d-flex align-items-end">
+                                <button type="submit" class="btn btn-success w-100">Save Transaction</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- THE TRANSACTIONS TABLE -->
+        <div class="col-md-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-0 pt-4 pb-0">
+                    <h4 class="mb-0">Recent Transactions</h4>
+                </div>
+                <div class="card-body">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th class="text-end">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactions-body">
+                            <!-- JS will inject rows here -->
+                            <tr><td colspan="4" class="text-center text-muted">Click Refresh to load data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- 2. The JavaScript (The Electricity) -->
+<script>
+    const API_KEY = "kenneth-super-secret-key-2026";
+    const HEADERS = { "X-API-Key": API_KEY };
+
+    async function loadDashboard() {
+        fetchBalance();
+        fetchTransactions();
+        fetchCategories(); // <--- ADD THIS LINE!
+    }
+
+    // Function 1: Get the Balance
+    async function fetchBalance() {
+        const display = document.getElementById("balance-display");
+        try {
+            const response = await fetch("http://127.0.0.1:5000/api/balance", { headers: HEADERS });
+            const json = await response.json();
+            if (response.ok) {
+                const formatted = json.data.total_balance.toLocaleString('en-US', { minimumFractionDigits: 2 });
+                display.innerText = `₦ ${formatted}`;
+            }
+        } catch (e) { display.innerText = "Error"; }
+    }
+
+    // Function 4: Fetch Categories and populate the dropdown!
+    async function fetchCategories() {
+        const dropdown = document.getElementById("category");
+        try {
+            const response = await fetch("http://127.0.0.1:5000/api/categories", { headers: HEADERS });
+            const json = await response.json();
+            
+            if (response.ok) {
+                // Clear the "Loading..." text
+                dropdown.innerHTML = '<option value="" disabled selected>Select a Category...</option>';
+                
+                // Loop through the data and create an option for each one!
+                json.data.forEach(cat => {
+                    // The user sees the Name, but the form submits the ID!
+                    dropdown.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
+                });
+            }
+        } catch (e) { 
+            dropdown.innerHTML = '<option value="" disabled>Error loading categories</option>'; 
+        }
+    }
+
+    // Function 2: Get the Top 5 Transactions
+    async function fetchTransactions() {
+        const tbody = document.getElementById("transactions-body");
+        try {
+            // Notice we use the Query Parameters we built earlier! page=1 & per_page=5
+            const response = await fetch("http://127.0.0.1:5000/api/transactions?page=1&per_page=5", { headers: HEADERS });
+            const json = await response.json();
+            
+            if (response.ok) {
+                tbody.innerHTML = ""; // Clear out the loading text
+                
+                // Loop through the 5 items and create an HTML row for each one
+                json.data.forEach(txn => {
+                    const formattedAmount = txn.amount.toLocaleString('en-US', { minimumFractionDigits: 2 });
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><span class="badge bg-secondary">${txn.date}</span></td>
+                            <td class="fw-bold">${txn.description}</td>
+                            <td>${txn.category}</td>
+                            <td class="text-end fw-bold">₦ ${formattedAmount}</td>
+                        </tr>
+                    `;
+                });
+            }
+        } catch (e) { tbody.innerHTML = "<tr><td colspan='4'>Error loading data</td></tr>"; }
+    }
+
+    // Function 3: Submit a new transaction
+    async function submitTransaction(event) {
+        // 1. Stop the HTML form from refreshing the page!
+        event.preventDefault(); 
+
+        // 2. Grab the values the user typed into the input boxes
+        const dateVal = document.getElementById("date").value;
+        const descVal = document.getElementById("description").value;
+        const amountVal = document.getElementById("amount").value;
+        const catVal = document.getElementById("category").value;
+
+        // 3. Build the JSON payload exactly how our Flask API expects it
+        const payload = {
+            date: dateVal,
+            description: descVal,
+            amount: parseFloat(amountVal),
+            category_id: parseInt(catVal),
+            payment_method: "Card" // Hardcoding this for now!
+        };
+
+        try {
+            // 4. Send the POST request to the API
+            const response = await fetch("http://127.0.0.1:5000/api/transactions", {
+                method: "POST",
+                headers: {
+                    "X-API-Key": API_KEY,
+                    "Content-Type": "application/json" // Tell Flask we are sending JSON!
+                },
+                body: JSON.stringify(payload) // Convert our JS object to a string
+            });
+
+            if (response.ok) {
+                // 5. If it worked, clear the form and refresh the dashboard!
+                document.getElementById("transaction-form").reset();
+                loadDashboard(); 
+                alert("Transaction added successfully!");
+            } else {
+                alert("Error saving transaction. Check your API.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("Network Error!");
+        }
+    }
+</script>
+
+</body>
+</html>
