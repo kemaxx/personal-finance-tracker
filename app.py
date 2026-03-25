@@ -9,7 +9,7 @@ from alchemy_101 import PersonalFinanceAlchemy
 from dotenv import load_dotenv
 import os
 from flask_cors import CORS
-from sqlalchemy import insert
+from sqlalchemy import insert, update
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 
@@ -141,6 +141,43 @@ def login_user():
     token = jwt.encode(payload, app.config['SECRET_KEY'], algorithm="HS256")
 
     return {"status": "success", "token": token}, 200
+
+@app.route("/api/change-password", methods=["PUT"])
+@require_jwt
+def change_password():
+    data = request.get_json()
+    current_password = data.get("current_password")
+    new_password = data.get("new_password")
+
+    if not current_password or not new_password:
+        return {"error": "Both current and new passwords are required"}, 400
+
+    # 1. Fetch the user's current data to verify their old password
+    stmt = select(tracker.users).where(tracker.users.c.id == request.user_id)
+    with tracker.engine.connect() as conn:
+        user = conn.execute(stmt).fetchone()
+
+    # 2. The Security Check: Did they type their old password correctly?
+    if not user or not check_password_hash(user.password_hash, current_password):
+        return {"error": "Incorrect current password"}, 401
+
+    # 3. Hash the NEW password
+    new_hashed_password = generate_password_hash(new_password)
+
+    # 4. Update the vault!
+    update_stmt = (
+        update(tracker.users)
+        .where(tracker.users.c.id == request.user_id)
+        .values(password_hash=new_hashed_password)
+    )
+
+    try:
+        with tracker.engine.begin() as conn:
+            conn.execute(update_stmt)
+        return {"status": "success", "message": "Password updated successfully!"}, 200
+    except Exception as e:
+        return {"error": "Failed to update password"}, 500
+
 
 
 @app.route("/api/balance", methods=["GET"])
