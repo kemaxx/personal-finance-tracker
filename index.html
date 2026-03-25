@@ -10,9 +10,28 @@
 <body class="bg-light">
 
 <div class="container mt-5">
-    <div class="row justify-content-center">
+    
+    <div id="login-view" class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 py-4 px-3">
+                <div class="card-body text-center">
+                    <h2 class="mb-4 fw-bold text-primary">Vault Login</h2>
+                    <input type="text" id="login-username" class="form-control mb-3" placeholder="Username">
+                    <input type="password" id="login-password" class="form-control mb-4" placeholder="Password">
+                    <button class="btn btn-primary w-100 mb-2" onclick="loginUser()">Login</button>
+                    <button class="btn btn-outline-secondary w-100" onclick="registerUser()">Create Account</button>
+                    <div id="login-error" class="text-danger mt-3" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="dashboard-view" class="row justify-content-center" style="display: none;">
         
-        <!-- THE BALANCE CARD -->
+        <div class="col-md-8 d-flex justify-content-end mb-2">
+            <button class="btn btn-sm btn-outline-danger" onclick="logoutUser()">Logout</button>
+        </div>
+
         <div class="col-md-8 mb-4">
             <div class="card shadow-sm text-center border-0">
                 <div class="card-body py-5">
@@ -25,7 +44,6 @@
             </div>
         </div>
 
-        <!-- THE INPUT FORM -->
         <div class="col-md-8 mb-4">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-white border-0 pt-4 pb-0">
@@ -49,7 +67,6 @@
                             <div class="col-md-4">
                                 <label class="form-label">Category</label>
                                 <select class="form-select" id="category" required>
-                                <!-- We will let JavaScript populate this! -->
                                 <option value="" disabled selected>Loading categories...</option>
                                 </select>
                             </div>
@@ -62,7 +79,6 @@
             </div>
         </div>
 
-        <!-- THE TRANSACTIONS TABLE -->
         <div class="col-md-8">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-white border-0 pt-4 pb-0">
@@ -79,21 +95,98 @@
                             </tr>
                         </thead>
                         <tbody id="transactions-body">
-                            <!-- JS will inject rows here -->
                             <tr><td colspan="4" class="text-center text-muted">Click Refresh to load data...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-
-    </div>
+        </div>
 </div>
 
 <!-- 2. The JavaScript (The Electricity) -->
 <script>
-    const API_KEY = "kenneth-super-secret-key-2026";
-    const HEADERS = { "X-API-Key": API_KEY };
+    // 1. We NO LONGER hardcode the API key here!
+    
+    // 2. A dynamic function to grab the token from the browser's vault
+    function getHeaders() {
+        const token = localStorage.getItem("jwt_token");
+        return {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}` // <--- This is the new Bouncer format!
+        };
+    }
+
+    // 3. The App Initialization
+    function initApp() {
+        const token = localStorage.getItem("jwt_token");
+        if (token) {
+            // If they have a token, show dashboard and hide login!
+            document.getElementById("login-view").style.display = "none";
+            document.getElementById("dashboard-view").style.display = "flex";
+            loadDashboard();
+        } else {
+            // If no token, show login!
+            document.getElementById("login-view").style.display = "flex";
+            document.getElementById("dashboard-view").style.display = "none";
+        }
+    }
+
+    async function loginUser() {
+        const user = document.getElementById("login-username").value;
+        const pass = document.getElementById("login-password").value;
+        const errorDiv = document.getElementById("login-error");
+        
+        try {
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/login", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            
+            const json = await response.json();
+            
+            if (response.ok) {
+                // SUCCESS! Save the token to the browser's vault!
+                localStorage.setItem("jwt_token", json.token);
+                errorDiv.style.display = "none";
+                initApp(); // Reload the UI to show the dashboard
+            } else {
+                errorDiv.innerText = json.error;
+                errorDiv.style.display = "block";
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function registerUser() {
+        // For simplicity, we just use the same input boxes to register!
+        const user = document.getElementById("login-username").value;
+        const pass = document.getElementById("login-password").value;
+        
+        try {
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            if (response.ok) {
+                alert("Account created! You can now log in.");
+            } else {
+                const json = await response.json();
+                alert(json.error);
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function logoutUser() {
+        // Destroy the token and kick them back to the login screen!
+        localStorage.removeItem("jwt_token");
+        initApp();
+    }
+
+    
+    // Run initApp immediately when the page loads!
+    window.onload = initApp;
 
     async function loadDashboard() {
         fetchBalance();
@@ -105,7 +198,7 @@
     async function fetchBalance() {
         const display = document.getElementById("balance-display");
         try {
-            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/balance", { headers: HEADERS });
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/balance", { headers: getHeaders() });
             const json = await response.json();
             if (response.ok) {
                 const formatted = json.data.total_balance.toLocaleString('en-US', { minimumFractionDigits: 2 });
@@ -118,7 +211,7 @@
     async function fetchCategories() {
         const dropdown = document.getElementById("category");
         try {
-            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/categories", { headers: HEADERS });
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/categories", { headers: getHeaders() });
             const json = await response.json();
             
             if (response.ok) {
@@ -141,7 +234,7 @@
         const tbody = document.getElementById("transactions-body");
         try {
             // Notice we use the Query Parameters we built earlier! page=1 & per_page=5
-            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/transactions?page=1&per_page=5", { headers: HEADERS });
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/transactions/recent", { headers: getHeaders() });
             const json = await response.json();
             
             if (response.ok) {
@@ -186,15 +279,13 @@
 
         try {
             // 4. Send the POST request to the API
+            // NEW VERSION:
             const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/transactions", {
                 method: "POST",
-                headers: {
-                    "X-API-Key": API_KEY,
-                    "Content-Type": "application/json" // Tell Flask we are sending JSON!
-                },
-                body: JSON.stringify(payload) // Convert our JS object to a string
+                headers: getHeaders(),          // <--- We just drop the new Bouncer in here!
+                body: JSON.stringify(payload)   // <--- KEEP THIS! This is the actual data!
             });
-
+            
             if (response.ok) {
                 // 5. If it worked, clear the form and refresh the dashboard!
                 document.getElementById("transaction-form").reset();

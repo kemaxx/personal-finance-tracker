@@ -20,6 +20,15 @@ class PersonalFinanceAlchemy:
         #create a catalog where our templates(tables) live
         metadata = MetaData()
 
+        # 1. The new Users ledger!
+        self.users = Table(
+            "users",
+            metadata,
+            Column("id", Integer, primary_key=True),
+            Column("username", String, unique=True, nullable=False),
+            Column("password_hash", String, nullable=False) # NEVER plain text!
+        )
+
         #create first template (categories table)
         self.categories = Table(
             "categories",
@@ -38,8 +47,11 @@ class PersonalFinanceAlchemy:
             Column("date",String,nullable=False,index=True),
             Column("created_at",DateTime,server_default=func.now()),
             Column("category_id",Integer,ForeignKey("categories.id"),nullable=False),
-            Column("payment_method",String,nullable=False)
+            Column("payment_method",String,nullable=False),
+
+            Column("user_id", Integer, ForeignKey("users.id"), nullable=False)
         )
+        #metadata.drop_all(self.engine)
         metadata.create_all(self.engine)
 
     def add_category(self,name, category_type):
@@ -52,8 +64,18 @@ class PersonalFinanceAlchemy:
         return row_id
 
 
-    def add_transaction(self,category_id,amount,date,description,payment_method):
-        stmt = insert(self.transactions).values(category_id=category_id,amount=amount,date=date,description=description,payment_method=payment_method)
+    # 1. Add user_id to the arguments list!
+    def add_transaction(self, category_id, amount, date, description, payment_method, user_id):
+        
+        # 2. Add user_id to the values being inserted!
+        stmt = insert(self.transactions).values(
+            category_id=category_id,
+            amount=amount,
+            date=date,
+            description=description,
+            payment_method=payment_method,
+            user_id=user_id  # <--- Here is the new column!
+        )
 
         with self.engine.begin() as conn:
             conn.execute(stmt)
@@ -62,7 +84,7 @@ class PersonalFinanceAlchemy:
         return True
         
 
-    def get_current_balance(self):
+    def get_current_balance(self,user_id):
         stmt = case(
             (self.categories.c.type=="income",self.transactions.c.amount),
             else_=-self.transactions.c.amount
@@ -70,8 +92,7 @@ class PersonalFinanceAlchemy:
 
         sum_stmt = func.sum(stmt)
         stmt = select(sum_stmt).select_from(
-            self.transactions.join(self.categories)
-        )
+            self.transactions.join(self.categories)).where(self.transactions.c.user_id==user_id)
 
         with self.engine.connect() as conn:
             balance = conn.execute(stmt).scalar()
@@ -179,11 +200,12 @@ class PersonalFinanceAlchemy:
         print(f"🔥 Successfully imported {len(transactions_to_insert)} transactions!")
         return True
 
-    def get_recent_transactions(self, limit=5):
-        # Join the tables, order from newest to oldest, and limit the results!
+    def get_recent_transactions(self, user_id, limit=5): # <--- 1. Add user_id here
+        # Join the tables, filter by user, order from newest to oldest, and limit!
         stmt = (
             select(self.transactions, self.categories.c.name.label("category_name"))
             .select_from(self.transactions.join(self.categories))
+            .where(self.transactions.c.user_id == user_id)  # <--- 2. Add this filter!
             .order_by(self.transactions.c.date.desc())
             .limit(limit)
         )
@@ -191,16 +213,16 @@ class PersonalFinanceAlchemy:
         with self.engine.connect() as conn:
             results = conn.execute(stmt)
             
-            # Convert the SQLAlchemy Row objects into standard Python dictionaries
+            # ... (keep the rest of your for-loop exactly the same) ...
             recent_list = []
             for row in results:
                 recent_list.append({
                     "id": row.id,
                     "date": row.date,
                     "description": row.description,
-                    "amount": round(row.amount / 100, 2), # Convert to Naira
+                    "amount": round(row.amount / 100, 2), 
                     "category": row.category_name,
-                    "payment_method": row.payment_method #getattr(row, 'payment_method', 'Unknown')
+                    "payment_method": row.payment_method 
                 })
                 
             return recent_list
@@ -218,13 +240,13 @@ class PersonalFinanceAlchemy:
             return result.rowcount > 0
     
     # 1. Adding category and search optional arguments to get_paginated_transactions function below
-    def get_paginated_transactions(self, page=1, per_page=20, category_filter=None, search_term=None):
+    def get_paginated_transactions(self, page=1, per_page=20, category_filter=None, search_term=None,user_id=None):
         offset_value = (page - 1) * per_page
         
         # 2. Build the BASE query (No limits or offsets yet!)
         stmt = (
             select(self.transactions, self.categories.c.name.label("category_name"))
-            .select_from(self.transactions.join(self.categories))
+            .select_from(self.transactions.join(self.categories)).where(self.transactions.c.user_id==user_id)
         )
 
         # 3. DYNAMIC FILTERS: Only add WHERE clauses if the user provided them!
@@ -256,14 +278,14 @@ class PersonalFinanceAlchemy:
                 
             return data_list
 
-    def get_category_spending_report(self):
+    def get_category_spending_report(self,user_id):
         # 1. We don't want every column. We ONLY want the Category Name, and the SUM of the amounts.
         stmt = (
             select(
                 self.categories.c.name.label("category_name"),
                 func.sum(self.transactions.c.amount).label("total_spent")
             )
-            .select_from(self.transactions.join(self.categories))
+            .select_from(self.transactions.join(self.categories)).where(self.transactions.c.user_id==user_id)
             
             # 2. This is the magic! It collapses 1,000 rows down to just the unique categories
             .group_by(self.categories.c.name)
