@@ -137,11 +137,15 @@
         const pass = document.getElementById("login-password").value;
         const errorDiv = document.getElementById("login-error");
         
-        // 1. Grab the button!
+        // 1. Grab BOTH buttons!
         const loginBtn = document.getElementById("login-btn");
+        const registerBtn = document.getElementById("register-btn");
         
-        // 2. Activate the UI Spinner & disable the button
+        // 2. Lock them BOTH down so the user can't click anything else
         loginBtn.disabled = true;
+        registerBtn.disabled = true;
+        
+        // 3. Show the loading state on the button that was clicked
         loginBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Waking up vault...`;
         errorDiv.style.display = "none";
         
@@ -155,36 +159,39 @@
             const json = await response.json();
             
             if (response.ok) {
-                // SUCCESS! Save the token!
                 localStorage.setItem("jwt_token", json.token);
-                initApp(); 
+                errorDiv.style.display = "none";
+                initApp(); // Reload the UI to show the dashboard
             } else {
                 errorDiv.innerText = json.error;
                 errorDiv.style.display = "block";
             }
         } catch (e) { 
             console.error(e); 
-            // Catch the silent crash and tell the user!
             errorDiv.innerText = "Network Error: Server might be waking up. Please try again in 60 seconds.";
             errorDiv.style.display = "block";
         } finally {
-            // 3. Turn the button back to normal no matter what!
+            // 4. Unlock BOTH buttons when the process is completely finished
             loginBtn.disabled = false;
+            registerBtn.disabled = false;
             loginBtn.innerHTML = "Login";
         }
     }
 
     async function registerUser() {
-        // Grab the input values
         const user = document.getElementById("login-username").value;
         const pass = document.getElementById("login-password").value;
         const errorDiv = document.getElementById("login-error");
         
-        // 1. Grab the Register Button
+        // 1. Grab BOTH buttons!
+        const loginBtn = document.getElementById("login-btn");
         const registerBtn = document.getElementById("register-btn");
         
-        // 2. Activate the UI Spinner & disable the button
+        // 2. Lock them BOTH down
+        loginBtn.disabled = true;
         registerBtn.disabled = true;
+        
+        // 3. Show the loading state on the register button
         registerBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating Vault...`;
         errorDiv.style.display = "none";
         
@@ -196,21 +203,19 @@
             });
             
             if (response.ok) {
-                // Success! We keep the browser alert here because it's a positive confirmation
                 alert("Account created! You can now log in.");
             } else {
-                // If the username is taken, show it beautifully on the card
                 const json = await response.json();
                 errorDiv.innerText = json.error;
                 errorDiv.style.display = "block";
             }
         } catch (e) { 
             console.error(e); 
-            // Catch the silent crash and tell the user!
             errorDiv.innerText = "Network Error: Server might be waking up. Please try again in 60 seconds.";
             errorDiv.style.display = "block";
         } finally {
-            // 3. Turn the button back to normal no matter what!
+            // 4. Unlock BOTH buttons when finished
+            loginBtn.disabled = false;
             registerBtn.disabled = false;
             registerBtn.innerHTML = "Create Account";
         }
