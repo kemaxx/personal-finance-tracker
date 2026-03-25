@@ -18,8 +18,8 @@
                     <h2 class="mb-4 fw-bold text-primary">Vault Login</h2>
                     <input type="text" id="login-username" class="form-control mb-3" placeholder="Username">
                     <input type="password" id="login-password" class="form-control mb-4" placeholder="Password">
-                    <button class="btn btn-primary w-100 mb-2" onclick="loginUser()">Login</button>
-                    <button class="btn btn-outline-secondary w-100" onclick="registerUser()">Create Account</button>
+                    <button id="login-btn" class="btn btn-primary w-100 mb-2" onclick="loginUser()">Login</button>
+                    <button id="register-btn" class="btn btn-outline-secondary w-100" onclick="registerUser()">Create Account</button>
                     <div id="login-error" class="text-danger mt-3" style="display: none;"></div>
                 </div>
             </div>
@@ -137,6 +137,14 @@
         const pass = document.getElementById("login-password").value;
         const errorDiv = document.getElementById("login-error");
         
+        // 1. Grab the button!
+        const loginBtn = document.getElementById("login-btn");
+        
+        // 2. Activate the UI Spinner & disable the button
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Waking up vault...`;
+        errorDiv.style.display = "none";
+        
         try {
             const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/login", {
                 method: "POST",
@@ -147,21 +155,38 @@
             const json = await response.json();
             
             if (response.ok) {
-                // SUCCESS! Save the token to the browser's vault!
+                // SUCCESS! Save the token!
                 localStorage.setItem("jwt_token", json.token);
-                errorDiv.style.display = "none";
-                initApp(); // Reload the UI to show the dashboard
+                initApp(); 
             } else {
                 errorDiv.innerText = json.error;
                 errorDiv.style.display = "block";
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(e); 
+            // Catch the silent crash and tell the user!
+            errorDiv.innerText = "Network Error: Server might be waking up. Please try again in 60 seconds.";
+            errorDiv.style.display = "block";
+        } finally {
+            // 3. Turn the button back to normal no matter what!
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = "Login";
+        }
     }
 
     async function registerUser() {
-        // For simplicity, we just use the same input boxes to register!
+        // Grab the input values
         const user = document.getElementById("login-username").value;
         const pass = document.getElementById("login-password").value;
+        const errorDiv = document.getElementById("login-error");
+        
+        // 1. Grab the Register Button
+        const registerBtn = document.getElementById("register-btn");
+        
+        // 2. Activate the UI Spinner & disable the button
+        registerBtn.disabled = true;
+        registerBtn.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating Vault...`;
+        errorDiv.style.display = "none";
         
         try {
             const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/register", {
@@ -169,13 +194,26 @@
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username: user, password: pass })
             });
+            
             if (response.ok) {
+                // Success! We keep the browser alert here because it's a positive confirmation
                 alert("Account created! You can now log in.");
             } else {
+                // If the username is taken, show it beautifully on the card
                 const json = await response.json();
-                alert(json.error);
+                errorDiv.innerText = json.error;
+                errorDiv.style.display = "block";
             }
-        } catch (e) { console.error(e); }
+        } catch (e) { 
+            console.error(e); 
+            // Catch the silent crash and tell the user!
+            errorDiv.innerText = "Network Error: Server might be waking up. Please try again in 60 seconds.";
+            errorDiv.style.display = "block";
+        } finally {
+            // 3. Turn the button back to normal no matter what!
+            registerBtn.disabled = false;
+            registerBtn.innerHTML = "Create Account";
+        }
     }
 
     function logoutUser() {
