@@ -9,7 +9,7 @@ class PersonalFinanceAlchemy:
     def __init__(self):
         db_url = os.getenv("DATABASE_URL")
         #path to the database fine: this translated
-        self.engine = create_engine(db_url,echo=True)
+        self.engine = create_engine(db_url,echo=True,pool_pre_ping=True)
 
         # @event.listens_for(self.engine, "connect")
         # def set_sqlite_pragma(dbapi_connection, connection_record):
