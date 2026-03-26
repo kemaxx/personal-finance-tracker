@@ -88,33 +88,40 @@ def ping_server():
 
 
 @app.route("/api/register", methods=["POST"])
-def register_user():
+def register():
     data = request.get_json()
-    
-    # 1. Grab what the user typed in
     username = data.get("username")
+    email = data.get("email") # <--- Extract the email
     password = data.get("password")
-    
-    if not username or not password:
-        return {"error": "Username and password required"}, 400
-        
-    # 2. THE BLENDER! Hash the password so we never store plain text.
+
+    # 1. Server-side validation
+    if not username or not email or not password:
+        return {"error": "Username, email, and password are required"}, 400
+
+    # 2. Architect Security: Check if username OR email is already taken!
+    stmt = select(tracker.users).where(
+        (tracker.users.c.username == username) | (tracker.users.c.email == email)
+    )
+    with tracker.engine.connect() as conn:
+        existing_user = conn.execute(stmt).fetchone()
+        if existing_user:
+            return {"error": "Username or email is already taken"}, 400
+
+    # 3. Hash and Insert
     hashed_password = generate_password_hash(password)
-    
-    # 3. Save the user to the vault
-    stmt = insert(tracker.users).values(
-        username=username,
+    insert_stmt = insert(tracker.users).values(
+        username=username, 
+        email=email, # <--- Inject the email securely into the vault!
         password_hash=hashed_password
     )
     
     try:
         with tracker.engine.begin() as conn:
-            conn.execute(stmt)
-        return {"status": "success", "message": f"User {username} successfully registered!"}, 201
-        
+            conn.execute(insert_stmt)
+        return {"status": "success", "message": "User created successfully"}, 201
     except Exception as e:
-        # If the username already exists, SQLAlchemy will throw a UniqueViolation error!
-        return {"error": "Username already exists or database error"}, 400
+        print(f"Registration Error: {e}")
+        return {"error": "Failed to create account. Please try again."}, 500
 
 @app.route("/api/login", methods=["POST"])
 def login_user():
