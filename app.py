@@ -231,6 +231,47 @@ def forgot_password():
         return {"error": "Failed to send email. Please try again later."}, 500
 
 
+import jwt
+from flask import request
+from werkzeug.security import generate_password_hash
+
+@app.route("/api/reset-password", methods=["POST"])
+def reset_password():
+    data = request.get_json()
+    token = data.get("token")
+    new_password = data.get("new_password")
+
+    if not token or not new_password:
+        return {"error": "Missing token or password"}, 400
+
+    try:
+        # 1. Decode the token (Flask will automatically crash if it's expired!)
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
+        
+        # 2. Verify it is actually a reset token, not a login token!
+        if payload.get("purpose") != "password_reset":
+            return {"error": "Invalid token type."}, 401
+            
+        user_id = payload.get("user_id")
+
+        # 3. Hash the new password
+        hashed_password = generate_password_hash(new_password)
+
+        # 4. Inject the new password into the vault
+        update_stmt = update(tracker.users).where(tracker.users.c.id == user_id).values(password_hash=hashed_password)
+        with tracker.engine.begin() as conn:
+            conn.execute(update_stmt)
+
+        return {"status": "success", "message": "Password successfully reset! You can now log in."}, 200
+
+    except jwt.ExpiredSignatureError:
+        return {"error": "This reset link has expired. Please request a new one."}, 401
+    except jwt.InvalidTokenError:
+        return {"error": "Invalid or corrupted reset link."}, 401
+    except Exception as e:
+        return {"error": "Internal server error"}, 500
+
+
 
 @app.route("/api/balance", methods=["GET"])
 @require_jwt  

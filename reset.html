@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Password - Vault</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-5">
+            <div class="card shadow-sm border-0 py-4 px-3">
+                <div class="card-body text-center">
+                    <h3 class="mb-4 fw-bold text-primary">Set New Password</h3>
+                    
+                    <div id="message-box" class="alert d-none"></div>
+
+                    <div id="form-container">
+                        <input type="password" id="new-pwd" class="form-control mb-3" placeholder="New Password">
+                        <input type="password" id="confirm-pwd" class="form-control mb-4" placeholder="Confirm New Password">
+                        <button id="reset-btn" class="btn btn-primary w-100" onclick="submitReset()">Save Password</button>
+                    </div>
+                    
+                    <a href="index.html" id="back-link" class="btn btn-outline-secondary w-100 mt-3 d-none">Back to Login</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 1. Grab the token from the URL (e.g., reset.html?token=xyz123)
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
+    const msgBox = document.getElementById("message-box");
+
+    // 2. Immediate Security Check: Did they arrive here without a token?
+    if (!token) {
+        document.getElementById("form-container").style.display = "none";
+        msgBox.className = "alert alert-danger";
+        msgBox.innerText = "No reset token found. Please use the exact link sent to your email.";
+        msgBox.classList.remove("d-none");
+    }
+
+    async function submitReset() {
+        const newPwd = document.getElementById("new-pwd").value;
+        const confirmPwd = document.getElementById("confirm-pwd").value;
+        const btn = document.getElementById("reset-btn");
+
+        if (newPwd !== confirmPwd) {
+            msgBox.className = "alert alert-warning";
+            msgBox.innerText = "Passwords do not match!";
+            msgBox.classList.remove("d-none");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span> Securing...`;
+        msgBox.classList.add("d-none");
+
+        try {
+            const response = await fetch("https://personal-finance-tracker-k080.onrender.com/api/reset-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ token: token, new_password: newPwd })
+            });
+
+            const json = await response.json();
+
+            if (response.ok) {
+                // Success! Hide the form and show the back button
+                document.getElementById("form-container").style.display = "none";
+                msgBox.className = "alert alert-success";
+                msgBox.innerText = json.message;
+                msgBox.classList.remove("d-none");
+                document.getElementById("back-link").classList.remove("d-none");
+            } else {
+                msgBox.className = "alert alert-danger";
+                msgBox.innerText = json.error;
+                msgBox.classList.remove("d-none");
+            }
+        } catch (e) {
+            msgBox.className = "alert alert-danger";
+            msgBox.innerText = "Network Error.";
+            msgBox.classList.remove("d-none");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = "Save Password";
+        }
+    }
+</script>
+</body>
+</html>
