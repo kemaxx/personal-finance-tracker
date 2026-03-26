@@ -1,3 +1,6 @@
+from flask_mail import Mail, Message
+import datetime
+import os
 import jwt
 import datetime
 from sqlalchemy import select
@@ -7,7 +10,6 @@ from flask import Flask
 # 1. Import your database class from your other file
 from alchemy_101 import PersonalFinanceAlchemy
 from dotenv import load_dotenv
-import os
 from flask_cors import CORS
 from sqlalchemy import insert, update
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -17,6 +19,15 @@ load_dotenv()
 
 
 app = Flask(__name__)
+# --- FLASK-MAIL CONFIGURATION ---
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get("MAIL_USERNAME")
+app.config['MAIL_PASSWORD'] = os.environ.get("MAIL_PASSWORD")
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get("MAIL_USERNAME")
+
+mail = Mail(app)
 # In production, this goes in your .env file!
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 CORS(app)
@@ -177,6 +188,47 @@ def change_password():
         return {"status": "success", "message": "Password updated successfully!"}, 200
     except Exception as e:
         return {"error": "Failed to update password"}, 500
+    
+
+@app.route("/api/forgot-password", methods=["POST"])
+def forgot_password():
+    data = request.get_json()
+    username = data.get("username")
+
+    if not username:
+        return {"error": "Username is required"}, 400
+
+    # 1. Find the user in the vault
+    stmt = select(tracker.users).where(tracker.users.c.username == username)
+    with tracker.engine.connect() as conn:
+        user = conn.execute(stmt).fetchone()
+
+    # Even if the user doesn't exist, we return a success message so hackers 
+    # can't use this form to guess which usernames are registered!
+    if not user or not user.email:
+        return {"status": "success", "message": "If that account exists and has an email, a reset link was sent."}, 200
+
+    # 2. Generate the 15-Minute Temporary Token
+    payload = {
+        "user_id": user.id,
+        "purpose": "password_reset", # Tag it so it can't be used for normal login!
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)
+    }
+    reset_token = jwt.encode(payload, app.config['SECRET_KEY'], algorithm="HS256")
+
+    # 3. Create the Reset Link (We will build this frontend page next!)
+    # Pointing to your live GitHub Pages URL
+    reset_link = f"https://kemaxx.github.io/personal-finance-tracker/reset.html?token={reset_token}"
+
+    # 4. Hand the message to the Postman
+    try:
+        msg = Message("Vault Password Reset Request", recipients=[user.email])
+        msg.body = f"Hello {user.username},\n\nYou requested a password reset. Click the link below to securely create a new password. This link will expire in 15 minutes.\n\n{reset_link}\n\nIf you did not request this, please ignore this email."
+        mail.send(msg)
+        return {"status": "success", "message": "If that account exists and has an email, a reset link was sent."}, 200
+    except Exception as e:
+        print(f"Email Error: {e}")
+        return {"error": "Failed to send email. Please try again later."}, 500
 
 
 

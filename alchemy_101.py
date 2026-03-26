@@ -26,6 +26,7 @@ class PersonalFinanceAlchemy:
             metadata,
             Column("id", Integer, primary_key=True),
             Column("username", String, unique=True, nullable=False),
+            Column("email", String(120), unique=True), # <--- ADD THIS NEW COLUMN
             Column("password_hash", String, nullable=False) # NEVER plain text!
         )
 
