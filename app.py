@@ -1,4 +1,4 @@
-from flask_mail import Mail, Message
+import requests
 import datetime
 import os
 import jwt
@@ -13,22 +13,15 @@ from dotenv import load_dotenv
 from flask_cors import CORS
 from sqlalchemy import insert, update
 from werkzeug.security import generate_password_hash, check_password_hash
-import jwt
+
+
 
 load_dotenv()
 
 
 app = Flask(__name__)
 # --- FLASK-MAIL CONFIGURATION ---
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USE_SSL'] = True
-app.config['MAIL_USERNAME'] = os.environ.get("MAIL_USERNAME")
-app.config['MAIL_PASSWORD'] = os.environ.get("MAIL_PASSWORD")
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get("MAIL_USERNAME")
 
-mail = Mail(app)
 # In production, this goes in your .env file!
 app.config['SECRET_KEY'] = os.getenv("SECRET_KEY")
 CORS(app)
@@ -222,25 +215,45 @@ def forgot_password():
     reset_link = f"https://kemaxx.github.io/personal-finance-tracker/reset.html?token={reset_token}"
 
     # 4. Hand the message to the Postman
+    # 4. The Production Path: Sending the HTTP Request to Resend
     try:
-        # msg = Message("Vault Password Reset Request", recipients=[user.email])
-        # msg.body = f"Hello {user.username},\n\nYou requested a password reset. Click the link below to securely create a new password. This link will expire in 15 minutes.\n\n{reset_link}\n\nIf you did not request this, please ignore this email."
-        # mail.send(msg)
-        # Look in your Render logs for this exact line!
-        print("\n" + "="*50)
-        print(f"🚨 DEV MODE RESET LINK FOR {user.username}:")
-        print(reset_link)
-        print("="*50 + "\n", flush=True)
+        resend_api_key = os.environ.get("RESEND_API_KEY")
+        headers = {
+            "Authorization": f"Bearer {resend_api_key}",
+            "Content-Type": "application/json"
+        }
         
-        return {"status": "success", "message": "If that account exists and has an email, a reset link was sent."}, 200
+        # Resend's free tier requires we send FROM this exact testing address
+        payload = {
+            "from": "onboarding@resend.dev",
+            "to": user.email, 
+            "subject": "Vault Password Reset",
+            "html": f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+                <h2 style="color: #0d6efd;">Vault Security</h2>
+                <p>Hello {user.username},</p>
+                <p>You requested a password reset. Click the button below to securely create a new password. This link will expire in exactly 15 minutes.</p>
+                <a href="{reset_link}" style="display: inline-block; padding: 10px 20px; color: white; background-color: #0d6efd; text-decoration: none; border-radius: 5px; margin-top: 15px;">Reset My Password</a>
+                <p style="margin-top: 30px; font-size: 12px; color: #6c757d;">If you did not request this, please ignore this email.</p>
+            </div>
+            """
+        }
+
+        # Fire the HTTP request right through Render's firewall!
+        api_response = requests.post("https://api.resend.com/emails", headers=headers, json=payload)
+
+        if api_response.status_code == 200:
+            return {"status": "success", "message": "If that account exists and has an email, a reset link was sent."}, 200
+        else:
+            print(f"Resend API Error: {api_response.text}")
+            return {"error": "Failed to dispatch email via API."}, 500
+
     except Exception as e:
-        print(f"Email Error: {e}")
-        return {"error": "Failed to send email. Please try again later."}, 500
+        print(f"Server Error: {e}")
+        return {"error": "Failed to process request."}, 500
 
 
-import jwt
-from flask import request
-from werkzeug.security import generate_password_hash
+
 
 @app.route("/api/reset-password", methods=["POST"])
 def reset_password():
