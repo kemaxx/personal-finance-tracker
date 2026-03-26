@@ -223,9 +223,15 @@ def forgot_password():
 
     # 4. Hand the message to the Postman
     try:
-        msg = Message("Vault Password Reset Request", recipients=[user.email])
-        msg.body = f"Hello {user.username},\n\nYou requested a password reset. Click the link below to securely create a new password. This link will expire in 15 minutes.\n\n{reset_link}\n\nIf you did not request this, please ignore this email."
-        mail.send(msg)
+        # msg = Message("Vault Password Reset Request", recipients=[user.email])
+        # msg.body = f"Hello {user.username},\n\nYou requested a password reset. Click the link below to securely create a new password. This link will expire in 15 minutes.\n\n{reset_link}\n\nIf you did not request this, please ignore this email."
+        # mail.send(msg)
+        # Look in your Render logs for this exact line!
+        print("\n" + "="*50)
+        print(f"🚨 DEV MODE RESET LINK FOR {user.username}:")
+        print(reset_link)
+        print("="*50 + "\n", flush=True)
+        
         return {"status": "success", "message": "If that account exists and has an email, a reset link was sent."}, 200
     except Exception as e:
         print(f"Email Error: {e}")
